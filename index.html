@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">		
+        <title>DFINITY Explorer</title>
+        <script src="https://d3js.org/d3.v4.min.js"></script>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css" integrity="sha384-WskhaSGFgHYWDcbwN70/dfYBj47jz9qbsMId/iRN3ewGhXQFZCSftd1LZCfmhktB" crossorigin="anonymous"> 
+        <!-- Remove if not used!!! -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <!-- <link href="dfinity.css" rel="stylesheet"> -->
+        <link rel="stylesheet" type="text/css" media="screen" href="dfinity.css" />
+        <link href="https://fonts.googleapis.com/css?family=Nunito+Sans|Istok+Web" rel="stylesheet">
+    </head>	
+	<body>
+    
+        <!-- Image and text -->
+        <nav class="navbar navbar-expand-lg navbar-dark">
+            <a class="navbar-brand" href="#">
+                <img src="/assets/logo_236x116.png" height="27" class="d-inline-block align-top" alt="">
+                <span>
+                    <span id="navbar-brand-dfinity">DFINITY</span>
+                    <span id="navbar-brand-explorer">ExpIorer</span>
+                </span>
+            </a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Blocks</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Transactions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Accounts</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Contracts</a>
+                    </li>
+                </ul>
+                <!-- Is "border" really needed?!!!
+                The blue select outline is kind of annoying!!! -->
+                <div class="input-group col-md-4">
+                    <input class="form-control text-white border-secondary border-right-0 border" type="search" placeholder="Search for block, transaction, or address" aria-label="Search" id="example-search-input">
+                    <span class="input-group-append">
+                        <button class="btn btn-outline-secondary border-secondary border-left-0 border" type="button">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </span>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- Is this all needed?!!! -->
+        <!-- <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script> -->
+        <!-- Replaced line above with line below for fadeIn() support. -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js" integrity="sha384-smHYKdLADwkXOn1EmN1qk/HfnUcbVRZyYmZ4qpPea6sjB/pTJ0euyQp0Mk8ck+5T" crossorigin="anonymous"></script>
+            
+        <!-- d3 code is customized for this window size -->
+        <!-- If svgwindow size is changed, then adjust scaleToWindow to keep object the same size. -->
+        <svg width="800" height="400" class="svgwindow"></svg>
+        <script>
+ 
+            //create somewhere to put the force directed graph
+            var svg = d3.select("svg"),
+                width = +svg.attr("width"),
+                height = +svg.attr("height");
+    
+            var centerX = width/2;
+            var centerY = height/2;
+            var scaleToWindow = width/2*0.8;
+            var numSymbolNodes = 36;
+            var numVertices = 8;
+            var numNodes = numSymbolNodes * numVertices;
+            var nodes_data = [];
+            // The initial rotateOffset does two things: it determines which part of the symbol
+            // goes in front (blue is on top in the DFINITY logo), and it makes a small adjustment
+            // to align the colors correctly.
+            var rotateOffset = numSymbolNodes/2 - 1.2;
+            for (var i = 0; i < numSymbolNodes; i++) {
+                var t = 2 * Math.PI * ((i + rotateOffset) % numSymbolNodes) / numSymbolNodes;
+                var scale = 2 / (3 - Math.cos(2*t));
+				var fx = centerX + scale * Math.cos(t) * scaleToWindow;
+                // Changed formula to use 1.8 rather than 2, the increase height of symbol.
+				var fy = centerY + scale * Math.sin(2*t) / 1.8 * scaleToWindow;
+
+                nodes_data.push({"name": i.toString(), "fx" : fx, "fy" : fy, "_fx" : fx, "_fy" : fy, "linkCount" : 0});
+            }
+            for (var i = numSymbolNodes; i < numNodes; i++) {
+                nodes_data.push({"name": i.toString(), "linkCount" : 0});
+            }
+    
+            var links_data = [];
+            for (var i = 0; i < numSymbolNodes; i++) {
+
+                // Define the ith link of the infinity symbol.
+                var indexSymbol = i;
+                var indexSymbolNext = (i+1)%numSymbolNodes;
+                // Add function for next 3 lines!!!
+                links_data.push({"source": indexSymbol.toString(), "target": indexSymbolNext.toString(), "opacity" : 1});
+                nodes_data[indexSymbol].linkCount++;
+                nodes_data[indexSymbolNext].linkCount++;
+
+                // Link at top of shape, parallel to symbol link, invisible.
+                var strength = 1;
+                var j = numVertices/2;
+                var indexSymboOpposite = j * numSymbolNodes + i;
+                var indexSymboOppositeNext = j * numSymbolNodes + (i+1)%numSymbolNodes;
+                links_data.push({"source": indexSymboOpposite.toString(), "target": indexSymboOppositeNext.toString(), "_strength" : strength, "opacity" : 0});
+                nodes_data[indexSymboOpposite].linkCount++;
+                nodes_data[indexSymboOppositeNext].linkCount++;
+
+               for (var j = 0; j < numVertices; j++) {
+                    // numSymbolNodes = 50, numVertices = 6
+                    // i: 0, j: 0, indexVertex: 0, indexNext: 1, indexVertexNext: 50
+                    // i: 0, j: 1, indexVertex: 50, indexNext: 51, indexVertexNext: 100
+                    // i: 0, j: 2, indexVertex: 100, indexNext: 101, indexVertexNext: 150
+                    // i: 0, j: 3, indexVertex: 150, indexNext: 151, indexVertexNext: 200
+                    // i: 0, j: 4, indexVertex: 200, indexNext: 201, indexVertexNext: 250
+                    // i: 0, j: 5, indexVertex: 250, indexNext: 251, indexVertexNext: 0
+                    // i: 1, j: 0, indexVertex: 1, indexNext: 2, indexVertexNext: 51
+                    // i: 1, j: 1, indexVertex: 51, indexNext: 52, indexVertexNext: 101
+                    // i: 1, j: 2, indexVertex: 101, indexNext: 102, indexVertexNext: 151
+                    // i: 1, j: 3, indexVertex: 151, indexNext: 152, indexVertexNext: 201
+                    // i: 1, j: 4, indexVertex: 201, indexNext: 202, indexVertexNext: 251
+                    // i: 1, j: 5, indexVertex: 251, indexNext: 252, indexVertexNext: 1
+                    // i: 49, j: 0, indexVertex: 49, indexNext: 0, indexVertexNext: 99
+                    // i: 49, j: 1, indexVertex: 99, indexNext: 50, indexVertexNext: 149
+                    // i: 49, j: 2, indexVertex: 149, indexNext: 100, indexVertexNext: 199
+                    // i: 49, j: 3, indexVertex: 199, indexNext: 150, indexVertexNext: 249
+                    // i: 49, j: 4, indexVertex: 249, indexNext: 200, indexVertexNext: 299
+                    // i: 49, j: 5, indexVertex: 299, indexNext: 250, indexVertexNext: 49
+
+                    // Define the jth link of the shape (e.g., if numVertices is 6, shape is 6-sided polygon).
+                    var index = j * numSymbolNodes + i;
+                    var indexShapeNext = (index+numSymbolNodes)%numNodes;
+                    links_data.push({"source": index.toString(), "target": indexShapeNext.toString(), "opacity" : 0.7});
+                    nodes_data[index].linkCount++;
+                    nodes_data[indexShapeNext].linkCount++;
+
+                    // indexVertex:0 to 51: 1 * 50 + 1 = 51
+                    // indexVertex:50 to 101: 2 * 50 + 1 = 101
+                    // indexVertex:100 to 151: 3 * 50 + 1 = 151
+                    // indexVertex:150 to 201: 4 * 50 + 1 = 201
+                    // indexVertex:200 to 251: 5 * 50 + 1 = 251
+                    // indexVertex:250 to 1: 0 * 50 + 1 = 1
+                    // Define the jth link of the spiral which spirals around the shapes.
+                    strength = 0.65;
+                    var indexSpiralNext = (j+1)%numVertices * numSymbolNodes + (i+1)%numSymbolNodes;
+                    links_data.push({"source": index.toString(), "target": indexSpiralNext.toString(), "_strength" : strength, "opacity" : 0.5});
+                    nodes_data[index].linkCount++;
+                    nodes_data[indexSpiralNext].linkCount++;
+                    links_data.push({"source": index.toString(), "target": indexSpiralNext.toString(), "_strength" : strength, "opacity" : 0.5});
+                    nodes_data[index].linkCount++;
+                    nodes_data[indexSpiralNext].linkCount++;
+
+                    //strength = 0.65;
+                    // var jOpposite = (j + numVertices/2)%numVertices;
+                    // var indexOpposite = jOpposite * numSymbolNodes + i;
+                    // indexOppositeSpiralNext = (jOpposite+1)%numVertices * numSymbolNodes + (i+1)%numSymbolNodes;
+                    // links_data.push({"source": indexOpposite.toString(), "target": indexOppositeSpiralNext.toString(), "_strength" : strength, "opacity" : 1});
+                    // nodes_data[indexOpposite].linkCount++;
+                    // nodes_data[indexOppositeSpiralNext].linkCount++;
+
+                    // Cross bar, invisible.
+                    if (j == 3)//hack!!! Probably move up out of this loop
+                    {
+                        strength = 1;
+                        var indexSymbol = i;
+                         links_data.push({"source": index.toString(), "target": indexSymbol.toString(), "_strength" : strength, "opacity" : 0});
+                        nodes_data[index].linkCount++;
+                        nodes_data[indexSymbol].linkCount++;
+                    }                    
+                }
+            }
+
+            //set up the simulation 
+            //nodes
+            var simulation = d3.forceSimulation()
+                .nodes(nodes_data);
+
+            //add forces
+            //we're going to add a charge to each node 
+            //also going to add a centering force
+            simulation
+                .force("charge_force", d3.forceManyBody()
+                    .strength(function (d) {return d.index < numSymbolNodes ? 0 : -9;}))
+                .force("center_force", d3.forceCenter(width / 2, height / 2));
+
+            //draw circles for the nodes 
+            var node = svg.append("g")
+                .attr("class", "nodes")
+                .selectAll("circle")
+                .data(nodes_data)
+                .enter()
+                .append("circle")
+                .attr("r", circleRadius)
+                .attr("stroke", circleStroke)
+                .attr("fill", circleColor)
+                .style("opacity", circleOpacity)
+                // Possibly define "stroke" here to call function which sets stroke color, rather than using css!!!
+                // Then, we can set the stroke color to match the link color!!!
+                .call(d3.drag()
+                    .on("start", dragStarted)
+                    .on("drag", dragged)
+                    .on("end", dragEnded));
+
+            function circleRadius(d) {
+                // console.log(d);
+                var radius = 4.5;
+                var bigRadius = 10;
+                if (d.index == selectedNodeIndex)
+                {
+                    if (blockTimeElapsed < blockTimeMs/2)
+                        return radius + (bigRadius-radius) * blockTimeElapsed/blockTimeMs*2;
+                    else
+                        return bigRadius - (bigRadius-radius) * (blockTimeElapsed-blockTimeMs/2)/blockTimeMs*2;
+                }
+                else
+                    return radius;
+            }
+
+            function gradientColor(color1, color2, percent) {
+                var p1 = percent;
+                var p2 = 1 - p1;
+                var rgb = [Math.round(color1[0] * p1 + color2[0] * p2),
+                    Math.round(color1[1] * p1 + color2[1] * p2),
+                    Math.round(color1[2] * p1 + color2[2] * p2)];
+                return rgb;
+            }
+
+            function rgbFromArray(array) {
+                return "rgb(" + array.join() + ")";
+            }
+
+            function getColor(index, numIndices) {
+                var purple = [99,38,132];
+                var pink = [237,30,121];
+                var darkOrange = [241,90,36];
+                var lightOrange = [251,176,59];
+                var blue = [41,171,226];
+                var transitionPercentSmall = 0.02;
+                var transitionPercentLarge = 0.1;
+                var transitionLinksSmall = numIndices * transitionPercentSmall;
+                var transitionLinksLarge = numIndices * transitionPercentLarge;
+                var lastPurpleLink = numIndices*0.15 - transitionLinksLarge;
+                var lastPinkLink = lastPurpleLink + transitionLinksLarge + numIndices*0.15 - transitionLinksSmall;
+                var lastDarkOrangeLink = lastPinkLink + transitionLinksSmall + numIndices*0.15 - transitionLinksLarge;
+                var lastLightOrangeLink = lastDarkOrangeLink + transitionLinksLarge + numIndices*0.15 - transitionLinksSmall;
+                var lastBlueLink = lastLightOrangeLink + transitionLinksSmall + numIndices*0.4 - transitionLinksSmall;
+
+                if (index <= lastPurpleLink)
+                    return rgbFromArray(purple);
+                else if (index <= lastPurpleLink + transitionLinksLarge)
+                {
+                    var percentage = (index - lastPurpleLink) / transitionLinksLarge;
+                    var array = gradientColor(pink, purple, percentage);
+                    return rgbFromArray(array);
+                }
+                else if (index <= lastPinkLink)
+                    return rgbFromArray(pink);
+                else if (index <= lastPinkLink + transitionLinksSmall)
+                {
+                    var percentage = (index - lastPinkLink) / transitionLinksSmall;
+                    var array = gradientColor(darkOrange, pink, percentage);
+                    return rgbFromArray(array);
+                }
+                else if (index <= lastDarkOrangeLink)
+                    return rgbFromArray(darkOrange);
+                else if (index <= lastDarkOrangeLink + transitionLinksLarge)
+                {
+                    var percentage = (index - lastDarkOrangeLink) / transitionLinksLarge;
+                    var array = gradientColor(lightOrange, darkOrange, percentage);
+                    return rgbFromArray(array);
+                }
+                else if (index <= lastLightOrangeLink)
+                    return rgbFromArray(lightOrange);
+                else if (index <= lastLightOrangeLink + transitionLinksSmall)
+                {
+                    var percentage = (index - lastLightOrangeLink) / transitionLinksSmall;
+                    var array = gradientColor(blue, lightOrange, percentage);
+                    return rgbFromArray(array);
+                }     
+                else if (index <= lastBlueLink)
+                    return rgbFromArray(blue);
+                else
+                {
+                    var percentage = (index - lastBlueLink) / transitionLinksSmall;
+                    var array = gradientColor(purple, blue, percentage);
+                    return rgbFromArray(array);
+                }
+            }
+
+            function circleStroke(d) {
+                return getColor(d.index%numSymbolNodes, numSymbolNodes);
+            }
+
+            //Function to choose what color circle we have
+            var selectedNodeIndex = 0;
+            function circleColor(d) {
+                // if (d.index == selectedNodeIndex)
+                // {
+                //     var grayVal;
+                //     if (blockTimeElapsed < blockTimeMs/2)
+                //         grayVal = 127 + 128 * blockTimeElapsed/blockTimeMs*2;
+                //     else
+                //         grayVal = 255 - 128 * (blockTimeElapsed-blockTimeMs/2)/blockTimeMs*2;
+                //     return "rgb(" + grayVal + "," + grayVal + "," + grayVal + ")";
+                // }
+                // else
+                // {
+                    return "rgb(127, 127, 127)";
+                // }
+            }
+
+            function circleOpacity(d) {
+                return 0.5;
+            }
+
+            function dragStarted(d) {
+                // Understand how this interacts with simulation.alphaDecay(0)!!!
+                if (!d3.event.active)
+                    simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(d) {
+                d.fx = d3.event.x;
+                d.fy = d3.event.y;
+            }
+
+            function dragEnded(d) {
+                if (!d3.event.active)
+                    simulation.alphaTarget(0);
+                d.fx = d._fx;
+                d.fy = d._fy;
+            }
+
+            svg.on('click', function() {
+                //var coords = d3.mouse(this);
+                //console.log(coords);
+                // remove if not used!!!
+            });
+
+            //Create the link force and add it to the simulation
+            //We need the id accessor to use named sources and targets 
+            var link_force =  d3.forceLink(links_data)
+                .id(function(d) { return d.name; })
+                //.strength(function(d) { return d.index < numSymbolNodes ? 0.7 : 0.7; })
+                .strength(function(d) { return d._strength > 0 ? d._strength : 1 / Math.min(d.source.linkCount, d.target.linkCount); })
+                .distance(14);        
+            simulation.force("links",link_force);
+
+            //draw lines for the links 
+            var link = svg.append("g")
+                .attr("class", "links")
+                .selectAll("line")
+                .data(links_data)
+                .enter()
+                .append("line")
+                .attr("stroke-width", 2) // why do things get blurry when this is increased?!!!
+                .style("stroke", linkColor);
+
+            link.style("opacity", function(o) {
+                 return o.opacity;
+            });
+ 
+            //Function to choose the line color and thickness 
+            function linkColor(d){
+                // if (d.source.index == selectedNodeIndex || d.target.index == selectedNodeIndex)
+                // {
+                //     var grayVal;
+                //     if (blockTimeElapsed < blockTimeMs/2)
+                //         grayVal = 127 + 128 * blockTimeElapsed/blockTimeMs*2;
+                //     else
+                //         grayVal = 255 - 128 * (blockTimeElapsed-blockTimeMs/2)/blockTimeMs*2;
+                //     var x = "rgb(" + grayVal + "," + grayVal + "," + "grayVal" + ")";
+                //     return x;
+                // }
+                // else
+                    return getColor(d.index, links_data.length);
+            }
+        
+            // The complete tickActions function    
+            function tickActions() {
+                //update circle positions each tick of the simulation 
+                node
+                    //.attr("cx", function(d) { if (d.fx>0) console.log("name: " + d.name, ", x: " + d.x +", y: ", d.y + ", fx: " + d.fx +", fy: ", d.fy); return d.x; })
+                    .attr("cx", function(d) { return d.x; })
+                    .attr("cy", function(d) { return d.y; });
+                    
+                //update link positions 
+                //simply tells one end of the line to follow one node around
+                //and the other end of the line to follow the other node around
+                link
+                    .attr("x1", function(d) { return d.source.x; })
+                    .attr("y1", function(d) { return d.source.y; })
+                    .attr("x2", function(d) { return d.target.x; })
+                    .attr("y2", function(d) { return d.target.y; });   
+            }
+
+            // Glow effect
+	        var defs = svg.append("defs");
+            var filter = defs.append("filter")
+                .attr("id","glow")
+                .attr("filterUnits", "userSpaceOnUse"); // remove clipping           
+            filter.append("feGaussianBlur")
+                .attr("class", "blur")
+                .attr("stdDeviation","4")
+                .attr("result","coloredBlur");
+            var feMerge = filter.append("feMerge");
+            feMerge.append("feMergeNode")
+                .attr("in","coloredBlur");
+            feMerge.append("feMergeNode")
+                .attr("in","SourceGraphic")
+
+            // Add initial blocks/transactions.
+            $(document).ready(function() {
+                for (var i = 0; i < 8; i++)
+                {
+                    addNewBlock();
+                    addNewTransaction();
+                }
+            });
+
+            d3.timer(animate);
+
+            var blockTimeMs = 3500;
+            var blockTimeElapsed = 0;
+            var lastElapsed = 0;
+            var rotateTimeMs = 33.3; // 30 frames/sec max
+            var rotateTimeElapsed = 0;
+            var rotateAmount = 0.00003;
+            var transactionTimeMs = 1000;
+            var transactionTimeElapsed = 0;
+            simulation.alphaDecay(0); // comment!!!
+            function animate(elapsed) {
+                blockTimeElapsed += elapsed - lastElapsed;
+                if (blockTimeElapsed > blockTimeMs)
+                {
+                    selectedNodeIndex = Math.floor(getRandomNumber(0, numNodes-1));
+                    //console.log(selectedNodeIndex);
+                    blockTimeElapsed = 0
+
+                    // Link node and link transitions so that they start at the same time.
+                    var t = d3.transition();
+
+                    d3.select(node.nodes()[selectedNodeIndex])
+                        .transition(t)
+                            .ease(d3.easeCubic)
+                            .duration(500)
+                            .attr("r", 5.5)
+                            .attr("stroke", "white")
+                            .style("fill", "white")
+                            .style("filter", "url(#glow)")
+                            .style("opacity", 0.75)
+                        .transition()
+                            .ease(d3.easeCubic)
+                            .duration(500)
+                            .attr("r", 4.5)
+                            .attr("stroke", circleStroke)
+                            .style("fill", circleColor)
+                            .style("opacity", 0.5)
+                        .transition()
+                            .style("filter", null);
+
+                    svg.selectAll("line")
+                         .transition(t)
+                            .duration(500)
+                            .ease(d3.easeLinear)
+                            .style("opacity", 0.7)
+                        .transition()
+                            .duration(1000)
+                            .ease(d3.easeLinear)
+                            .style("opacity", 0.55);
+
+                    addNewBlock();
+                }
+                //var circles = svg.selectAll("circle");
+                //circles.attr("fill", circleColor).attr("r", circleRadius);
+                // More efficient than above, but might have bug where node is left large!!!
+                // d3.select(node.nodes()[selectedNodeIndex])
+                //     .attr("fill", circleColor)
+                //     .attr("r", circleRadius);
+                // var lines = svg.selectAll("line");
+                // lines.style("stroke", linkColor);
+                //console.log(blockTimeElapsed);
+
+                /*!!!
+                After modifying the desired parameter (here link.strength), you should reheat
+                the simulation using simulation.alpha and simulation.restart. Alternatively,
+                you can prevent the simulation from cooling by setting simulation.alphaDecay
+                to 0, or by setting simulation.alphaTarget to a positive value. 
+                */
+                // In order to increase efficiency, it might be possible to decrease the
+                // frequency at which we change node positions, then use d3 transitions
+                // so that the movement is smooth. The problem is, non-symbol nodes will
+                // still be moving based on the simulation, so it's unknown whether this
+                // will actually improve performance. Still, it's worth a shot. See webpage
+                // "D3.selectAll(...).transition() Explained"
+                // (http://bl.ocks.org/Kcnarf/9e4813ba03ef34beac6e)!!!
+                rotateTimeElapsed += elapsed - lastElapsed;
+                if (rotateTimeElapsed > rotateTimeMs)
+                {
+                    //simulation.alphaTarget(0.3).restart();//hack!!!
+                    for (var i = 0; i < numSymbolNodes; i++) {
+                    //for (var i = numSymbolNodes-1; i >= 0; i--) {
+                        var t = 2 * Math.PI * ((i + rotateOffset) % numSymbolNodes) / numSymbolNodes;
+                        rotateOffset += rotateAmount;
+                        var scale = 2 / (3 - Math.cos(2*t));
+                        var fx = centerX + scale * Math.cos(t) * scaleToWindow;
+                        // Changed formula to use 1.8 rather than 2, the increase height of symbol.
+                        var fy = centerY + scale * Math.sin(2*t) / 1.8 * scaleToWindow;
+
+                        nodes_data[i].fx = nodes_data[i]._fx = fx;
+                        nodes_data[i].fy = nodes_data[i]._fy = fy;
+                    }
+                    rotateTimeElapsed = 0;
+                }
+
+                transactionTimeElapsed += elapsed - lastElapsed;
+                if (transactionTimeElapsed > transactionTimeMs)
+                {
+                    var numTransactions = Math.floor(getRandomNumber(0, 3));
+                    for (var i = 0; i < numTransactions; i++) {
+                        addNewTransaction();
+                    }
+                    transactionTimeElapsed = 0;
+                }
+
+                lastElapsed = elapsed;
+            }
+
+            function getRandomNumber(start, end) {
+                return ((Math.random() * (end-start)) + start);
+            }
+
+            // Apply tickActions() on every tick.
+            simulation.on("tick", tickActions);
+
+            var blockHeight = 39840824;
+            function addNewBlock() {                    
+                // Get the <table> element with id="recent-blocks".
+                var table = document.getElementById("recent-blocks").getElementsByTagName("tbody")[0];
+
+                // Keep at most 8 rows in the table.
+                if (table.rows.length == 8)
+                    table.deleteRow(7);
+
+                // Create an empty row (<tr> element) and add it to the 1st position of the table.
+                var row = table.insertRow(0);
+
+                // Fade in the row using jQuery.
+                $(row).hide();
+                $(row).fadeIn(500); 
+
+                var date = new Date();
+                var transactions = 0 + Math.floor(getRandomNumber(0, 12));
+
+                // Insert cells (<td> elements).
+                row.insertCell(0).innerHTML = blockHeight.toLocaleString();
+                row.insertCell(1).innerHTML = date.toLocaleString();
+                var cell =  row.insertCell(2);
+                cell.className = "text-right";
+                cell.innerHTML = transactions.toLocaleString();
+
+                blockHeight++;
+            }
+
+            var dummyHashes = [
+                "c249ec8dd75fce70369ebd33efd87a8a716031ea22bda8d53e16f78092736caf",
+                "7ae99ee863c6b2a20d03784791143dd53cbe0ba3483b011eedf5fe6a5cb18479",
+                "6806fc0935c2046f6a0bf673c11b9b413d122b9814285e9bbc3020c1b5903f68",
+                "9ac99b7599f9567653a4f9f213cdcfd925bdb4dcf9e44846f85a22be6793fc8e",
+                "ae73d8adff558c5627e647ead6ab3682bd743a48f9ae6b593e0371333ae39137",
+                "0d82af3a922cf21fa569d21ae01e14320bd5fc2ea9ea2914b5b16af3adc81dfa",
+                "f154a60fe462beff3a4afe5c64c7443baca6772f21ce57d626788f65865f4969",
+                "b50561d5d326f4d826b8bfca8e8866cedd303ef2660b944f879e2be345f03505",
+                "4c40aa52026cfe3624949d356a18151a2391da6e8b71c45fc8f35bbdbf9916f7",
+                "2d0638b0ad4b1ed4bc69804cd218da333b3262151bdad75f50b775aa054f751f",
+                "88c8ea7f3a8638883f1294911ac2a21becd485934c7adf32daf6283352a6e39c",
+                "c44e93778563f5de35516f0f86c7ba76ac5ef6ff47ff50e18d57b629e8c41b3a",
+                "995bd1dcb6244c288b6ed58c0505979c183c7426de61fda896d359217b370122",
+                "c6cb95518ce7fb0f0de626bee0b74f028b4e49ce91e359bdbbcf88e0429a713f",
+                "e8a5f5a268a7001b7fbea06adfdc4764c1093df8b38941437b92005baf0692d0",
+                "b2033a799f64004c8bdf576d85c25919f2f9349e25eca6af2dc9b3eaf7b40e20",
+                "a34162ab986bf52f6709ecf393ade671bf4dde57075570057ecec18e6d49cdd0",
+                "a6051d321d2004a33449a8f5122f399be8c48d6099a576e0deee2df0f2ba4bde",
+                "d0cc108ec7e01e27e8d6faafbacd12cf1efab58b38061bf8895e3876548f6dd3",
+                "98d46bb46e48d7c772651b53f2c9e361618f6181f5cf78ca8e91f770879e8793",
+                "b834c6862474665391f133b63697014d5a8fa2dd95d6d9417961b002fbd94e5e",
+                "5c63bd54fa84cd62e251e17880747f49a6264d85d13a740f31e73b153876b092",
+                "5f664be325f1f957c6c722defb5ccf2e889c44bc11e878c45e7c40ee3ef21b81",
+                "8eb440b40529980bdf9c43f80ce216882aa1247873dc90c6409ee311a82da853",
+                "6f5d1f21f0b115a808aaeb47ba5575decf0f533b1ad813a5eb8dbe8ea6cb4be2",
+                "10bf47c648fd933234e59d4f723b23a107e35c20ee3bca144c9c22ca7b7a9000",
+                "1eec164eaf30aa10f4ceaef2bc4a9e91f1a8f2b89699956d628ead37eea595c9",
+                "626ececefb90b00b92a171f9100359340ef4c51279ba3cea7a577230412e24b0",
+                "0c399d48d28d90b3fbc76aba1b66da039f7facfda1c6924ae166678bb2674199",
+                "83213fccda1547aef621c9369097893119af4976deb19f5c4639d478e5632371",
+                "b0f1cae1319ab0c7a9f384ec02fc0db3430857794b73e67ec061614b92edfc7d",
+                "18689097a9c1bd9f951c5d13670f1276fcd91eb93a37a91709a98c864210494f",
+                "33cd5338e8908db9eb2f3222eba1560044424bc1e2668b43ed91efb935d46e94",
+                "a9bc70dfabd00cc0ecea734d0e1d7adc2c2ab964073825eee00f6dc41a919d1c",
+                "ca7ae486a6559410fe8675b624d1784e194907d7269880f4876de859785730b5",
+                "c291b71cef50e6dafe9a7a98c38caaf9f113a602cb669c12c37f944cab93f2a7",
+                "39078aa12ca668cb121774e20c53859336364fbdf6f803ba9963fa3160679c1b",
+                "8232f6f9604e70696924a085cebe13abeab34045d9920b9cdc345a186fedea53",
+                "204604c4f230851436805afc474e96a4d26f60db538dc475a26fd0e371dee51d",
+                "c22e5fc39d302b8da0890df80140674de3ce1e53a7bf9a69e1611333d45b0be1"
+            ];
+            
+            function addNewTransaction() {                    
+                // Get the <table> element with id="recent-txns".
+                var table = document.getElementById("recent-txns").getElementsByTagName("tbody")[0];
+
+                // Keep at most 8 rows in the table.
+                if (table.rows.length == 8)
+                    table.deleteRow(7);
+
+                // Create an empty row (<tr> element) and add it to the 1st position of the table.
+                var row = table.insertRow(0);
+
+                // Fade in the row.
+                $(row).hide();
+                $(row).fadeIn(500); 
+
+                var hash = dummyHashes[Math.floor(getRandomNumber(0, dummyHashes.length-1))]
+                var dfn = getRandomNumber(1, getRandomNumber(0, 1) > 0.5 ? 1000 : 100);
+
+                // Insert cells (<td> elements).
+                //row.insertCell(0).innerHTML = hash.toString();
+                var cell =  row.insertCell(0);
+                cell.className = "truncate";
+                cell.innerHTML = hash.toString();
+                cell =  row.insertCell(1);
+                cell.className = "text-right";
+                //cell.innerHTML = dfn.toFixed(Math.floor(getRandomNumber(0, 8))).toString() + " DFN";
+                cell.innerHTML = dfn.toFixed(8).toString() + " DFN";
+            }          
+
+
+        </script>
+       
+        <div class="container" id="recent-container">
+            <div class="row">
+                <div class="col-lg pr-4">
+                    <h2 class="recent">Recent Blocks</h2>
+                    <table id="recent-blocks">
+                        <thead id="recent-blocks-thead">
+                            <tr>
+                                <th>Height</th>
+                                <th>Timestamp</th> 
+                                <th class="text-right">Transactions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-lg pl-4">
+                    <h2 class="recent">Recent Transactions</h2>
+                    <table id="recent-txns">
+                        <thead>
+                            <tr>
+                                <th>Hash</th>
+                                <th class="text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>  
+                </div>
+            </div>
+        </div> 
+    </body>
+</html>
+
