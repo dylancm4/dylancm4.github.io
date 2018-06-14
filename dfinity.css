@@ -47,10 +47,11 @@ body {
     display: block;
     margin-left: auto;
     margin-right: auto;
+    margin-top: -31px;
 }
 
 #recent-container {
-    margin-top: -12px;
+    margin-top: -31px;
 }
 
 .recent {
@@ -125,4 +126,50 @@ td {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.footer {
+    width: 100%;
+    height: 72px;
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    background-color: rgb(51, 51, 51);
+    color: rgba(255, 255, 255, 0.5);
+    font-family: 'Nunito Sans', sans-serif;
+}
+
+#footer-copyright {
+    padding-top: 30px;
+    font-size: 12px;
+}
+
+#footer-subscribe {
+    padding-top: 5px;
+}
+
+#footer-subscribe-button {
+    margin-top: -3px;
+    border-radius: 300px;
+    background-color: rgb(41, 171, 226, 0.75);
+    border-color: rgb(34, 34, 34);
+    color: rgb(220, 220, 220);
+}
+
+#footer-subscribe-button:hover {
+    cursor: pointer;
+    background-color: rgb(41, 171, 226, 0.9);
+}
+
+.footer .fa {
+    margin-top: 26px;
+    font-size: 20px;
+    margin-left: 30px;
+    text-align: center;
+    text-decoration: none;
+    color: rgba(255, 255, 255, 0.5);
+}
+  
+.fa:hover {
+    color: rgb(220, 220, 220);
 }
